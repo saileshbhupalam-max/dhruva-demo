@@ -4,21 +4,34 @@
  * Backend: Railway (https://web-production-9dfcb.up.railway.app)
  */
 
+// Debug logging prefix
+const DEBUG_PREFIX = '[DHRUVA-API]';
+
 // API Configuration
 const getApiUrl = (): string => {
+  console.log(`${DEBUG_PREFIX} getApiUrl() called`);
+  console.log(`${DEBUG_PREFIX} VITE_API_URL:`, import.meta.env.VITE_API_URL);
+  console.log(`${DEBUG_PREFIX} VITE_RAILWAY_URL:`, import.meta.env.VITE_RAILWAY_URL);
+  console.log(`${DEBUG_PREFIX} PROD mode:`, import.meta.env.PROD);
+
   // Check for environment variable first
   if (import.meta.env.VITE_API_URL) {
+    console.log(`${DEBUG_PREFIX} Using VITE_API_URL:`, import.meta.env.VITE_API_URL);
     return import.meta.env.VITE_API_URL;
   }
   // Production Railway URL
   if (import.meta.env.PROD) {
-    return import.meta.env.VITE_RAILWAY_URL || 'https://web-production-9dfcb.up.railway.app';
+    const url = import.meta.env.VITE_RAILWAY_URL || 'https://web-production-9dfcb.up.railway.app';
+    console.log(`${DEBUG_PREFIX} Using production URL:`, url);
+    return url;
   }
   // Local development
+  console.log(`${DEBUG_PREFIX} Using localhost:8000`);
   return 'http://localhost:8000';
 };
 
 export const API_URL = getApiUrl();
+console.log(`${DEBUG_PREFIX} Final API_URL:`, API_URL);
 
 // Types matching backend response
 export interface ClassificationResult {
@@ -113,21 +126,35 @@ class DhruvaAPI {
    * Check if backend is available
    */
   async healthCheck(): Promise<{ healthy: boolean; details?: MLHealthResponse }> {
+    const healthUrl = `${this.baseUrl}/api/v1/ml/health`;
+    console.log(`${DEBUG_PREFIX} healthCheck() starting...`);
+    console.log(`${DEBUG_PREFIX} Health URL:`, healthUrl);
+
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-      const response = await fetch(`${this.baseUrl}/api/v1/ml/health`, {
+      console.log(`${DEBUG_PREFIX} Fetching health endpoint...`);
+      const response = await fetch(healthUrl, {
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
 
+      console.log(`${DEBUG_PREFIX} Health response status:`, response.status);
+      console.log(`${DEBUG_PREFIX} Health response ok:`, response.ok);
+
       if (response.ok) {
         const data = await response.json();
+        console.log(`${DEBUG_PREFIX} Health response data:`, data);
+        console.log(`${DEBUG_PREFIX} healthCheck() returning healthy: true`);
         return { healthy: true, details: data };
       }
+      console.log(`${DEBUG_PREFIX} healthCheck() returning healthy: false (response not ok)`);
       return { healthy: false };
-    } catch {
+    } catch (error) {
+      console.error(`${DEBUG_PREFIX} healthCheck() CAUGHT ERROR:`, error);
+      console.error(`${DEBUG_PREFIX} Error name:`, error instanceof Error ? error.name : 'Unknown');
+      console.error(`${DEBUG_PREFIX} Error message:`, error instanceof Error ? error.message : String(error));
       return { healthy: false };
     }
   }
@@ -140,11 +167,20 @@ class DhruvaAPI {
     citizenId?: string,
     location?: string
   ): Promise<AnalyzeResponse> {
+    const analyzeUrl = `${this.baseUrl}/api/v1/ml/analyze`;
+    console.log(`${DEBUG_PREFIX} analyzeGrievance() starting...`);
+    console.log(`${DEBUG_PREFIX} Analyze URL:`, analyzeUrl);
+    console.log(`${DEBUG_PREFIX} Request body:`, { text: text.substring(0, 50) + '...', citizen_id: citizenId, location });
+
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+    const timeoutId = setTimeout(() => {
+      console.log(`${DEBUG_PREFIX} TIMEOUT (${this.timeout}ms) - aborting request`);
+      controller.abort();
+    }, this.timeout);
 
     try {
-      const response = await fetch(`${this.baseUrl}/api/v1/ml/analyze`, {
+      console.log(`${DEBUG_PREFIX} Fetching analyze endpoint...`);
+      const response = await fetch(analyzeUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -158,15 +194,26 @@ class DhruvaAPI {
       });
 
       clearTimeout(timeoutId);
+      console.log(`${DEBUG_PREFIX} Analyze response status:`, response.status);
+      console.log(`${DEBUG_PREFIX} Analyze response ok:`, response.ok);
 
       if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error(error.detail || `API error: ${response.status}`);
+        const errorBody = await response.json().catch(() => ({}));
+        console.error(`${DEBUG_PREFIX} Analyze API returned error:`, errorBody);
+        throw new Error(errorBody.detail || `API error: ${response.status}`);
       }
 
-      return await response.json();
+      const data = await response.json();
+      console.log(`${DEBUG_PREFIX} Analyze SUCCESS! Response:`, data);
+      console.log(`${DEBUG_PREFIX} Classification:`, data.classification?.department, data.classification?.confidence);
+      return data;
     } catch (error) {
       clearTimeout(timeoutId);
+      console.error(`${DEBUG_PREFIX} analyzeGrievance() CAUGHT ERROR:`, error);
+      console.error(`${DEBUG_PREFIX} Error name:`, error instanceof Error ? error.name : 'Unknown');
+      console.error(`${DEBUG_PREFIX} Error message:`, error instanceof Error ? error.message : String(error));
+      console.error(`${DEBUG_PREFIX} Error stack:`, error instanceof Error ? error.stack : 'No stack');
+
       if (error instanceof Error && error.name === 'AbortError') {
         throw new Error('Request timeout - backend may be starting up');
       }
