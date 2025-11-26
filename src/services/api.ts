@@ -9,9 +9,9 @@ const getApiUrl = (): string => {
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
   }
-  // Production Railway URL (will be set after deployment)
+  // Production Railway URL
   if (import.meta.env.PROD) {
-    return import.meta.env.VITE_RAILWAY_URL || 'https://dhruva-backend.railway.app';
+    return import.meta.env.VITE_RAILWAY_URL || 'https://web-production-9dfcb.up.railway.app';
   }
   // Local development
   return 'http://localhost:8000';
