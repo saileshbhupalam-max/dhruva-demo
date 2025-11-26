@@ -1,6 +1,7 @@
 /**
  * Dhruva API Service
  * Connects demo frontend to real FastAPI backend ML pipeline
+ * Backend: Railway (https://web-production-9dfcb.up.railway.app)
  */
 
 // API Configuration
