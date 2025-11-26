@@ -7,7 +7,7 @@ import {
 import {
   TrendingUp, TrendingDown, MapPin, AlertTriangle, Users, Building2,
   BarChart3, Calendar, Download, MessageSquare, Lightbulb, ChevronRight,
-  Search, AlertCircle
+  Search, AlertCircle, Clock, Target, CheckCircle2
 } from 'lucide-react';
 
 // Convert district data to array format for display
@@ -25,6 +25,34 @@ const departmentArray = Object.entries(DEPARTMENT_DATA).map(([name, data]) => ({
   ...data,
   slaCompliance: Math.round(100 - data.dissatisfaction),
 }));
+
+// Action Items - what to do this week/month/quarter by geography
+const actionItems = {
+  thisWeek: [
+    { district: 'Ananthapur', action: 'Deploy 6 additional staff from reserve pool', priority: 'CRITICAL', type: 'staffing' },
+    { district: 'Guntur Ward 7', action: 'Reschedule water supply to 6-8 AM slot', priority: 'HIGH', type: 'infrastructure' },
+    { district: 'West Godavari', action: 'Issue warning to Joint Director Fisheries', priority: 'HIGH', type: 'performance' },
+  ],
+  thisMonth: [
+    { district: 'Nellore', action: 'Conduct training on land survey procedures', priority: 'MEDIUM', type: 'training' },
+    { district: 'Prakasam', action: 'Setup dedicated Revenue helpdesk', priority: 'MEDIUM', type: 'process' },
+    { district: 'Kadapa', action: 'Review all pending pension cases >90 days', priority: 'HIGH', type: 'review' },
+  ],
+  thisQuarter: [
+    { district: 'Statewide', action: 'Implement mandatory call logging before case closure', priority: 'HIGH', type: 'process' },
+    { district: 'Revenue Dept', action: 'Deploy field verification checklist app', priority: 'MEDIUM', type: 'technology' },
+    { district: 'Top 5 districts', action: 'Citizen satisfaction survey campaign', priority: 'LOW', type: 'feedback' },
+  ],
+};
+
+// Recurring issues by geography
+const recurringIssuesByGeography = [
+  { area: 'Guntur District', issue: 'Water supply timing', count: 1247, trend: 'rising', months: 6 },
+  { area: 'Ananthapur District', issue: 'Pension delays', count: 892, trend: 'stable', months: 12 },
+  { area: 'West Godavari', issue: 'Fisheries licensing', count: 634, trend: 'rising', months: 4 },
+  { area: 'Nellore', issue: 'Land survey disputes', count: 521, trend: 'declining', months: 8 },
+  { area: 'Prakasam', issue: 'Ration card renewals', count: 456, trend: 'rising', months: 3 },
+];
 
 // Pattern recommendations based on real data
 const patterns = [
@@ -149,6 +177,133 @@ export default function PolicymakerPage() {
             {(HEADLINE_STATS.falseCLosures2025 / 1000).toFixed(0)}K
           </p>
           <p className="text-[10px] sm:text-xs text-red-500">Not resolved</p>
+        </div>
+      </div>
+
+      {/* Action Items - What to do this Week/Month/Quarter */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden">
+        <div className="p-3 sm:p-4 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <Target className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
+            Action Items by Timeline
+          </h2>
+        </div>
+        <div className="grid md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-gray-200 dark:divide-gray-700">
+          {/* This Week */}
+          <div className="p-3 sm:p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Clock className="w-4 h-4 text-red-500" />
+              <h3 className="font-medium text-red-600 dark:text-red-400 text-sm">This Week</h3>
+              <span className="ml-auto px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 text-xs rounded">{actionItems.thisWeek.length}</span>
+            </div>
+            <div className="space-y-2">
+              {actionItems.thisWeek.map((item, i) => (
+                <div key={i} className="p-2 rounded-lg bg-gray-50 dark:bg-gray-700/50">
+                  <div className="flex items-start gap-2">
+                    <span className={`flex-shrink-0 mt-0.5 w-2 h-2 rounded-full ${
+                      item.priority === 'CRITICAL' ? 'bg-red-500' :
+                      item.priority === 'HIGH' ? 'bg-orange-500' : 'bg-yellow-500'
+                    }`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-gray-700 dark:text-gray-300">{item.district}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{item.action}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* This Month */}
+          <div className="p-3 sm:p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Calendar className="w-4 h-4 text-orange-500" />
+              <h3 className="font-medium text-orange-600 dark:text-orange-400 text-sm">This Month</h3>
+              <span className="ml-auto px-1.5 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-600 text-xs rounded">{actionItems.thisMonth.length}</span>
+            </div>
+            <div className="space-y-2">
+              {actionItems.thisMonth.map((item, i) => (
+                <div key={i} className="p-2 rounded-lg bg-gray-50 dark:bg-gray-700/50">
+                  <div className="flex items-start gap-2">
+                    <span className={`flex-shrink-0 mt-0.5 w-2 h-2 rounded-full ${
+                      item.priority === 'HIGH' ? 'bg-orange-500' : 'bg-yellow-500'
+                    }`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-gray-700 dark:text-gray-300">{item.district}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{item.action}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* This Quarter */}
+          <div className="p-3 sm:p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <BarChart3 className="w-4 h-4 text-blue-500" />
+              <h3 className="font-medium text-blue-600 dark:text-blue-400 text-sm">This Quarter</h3>
+              <span className="ml-auto px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 text-xs rounded">{actionItems.thisQuarter.length}</span>
+            </div>
+            <div className="space-y-2">
+              {actionItems.thisQuarter.map((item, i) => (
+                <div key={i} className="p-2 rounded-lg bg-gray-50 dark:bg-gray-700/50">
+                  <div className="flex items-start gap-2">
+                    <span className={`flex-shrink-0 mt-0.5 w-2 h-2 rounded-full ${
+                      item.priority === 'HIGH' ? 'bg-orange-500' :
+                      item.priority === 'MEDIUM' ? 'bg-yellow-500' : 'bg-green-500'
+                    }`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-gray-700 dark:text-gray-300">{item.district}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{item.action}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Recurring Issues by Geography */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden">
+        <div className="p-3 sm:p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+          <h2 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-purple-500" />
+            Recurring Issues by Geography
+          </h2>
+          <span className="text-xs text-gray-500">Top systemic issues</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[400px]">
+            <thead className="bg-gray-50 dark:bg-gray-700/50">
+              <tr>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">Area</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">Issue</th>
+                <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-300">Cases</th>
+                <th className="px-3 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-300">Trend</th>
+                <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-300">Duration</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+              {recurringIssuesByGeography.map((item, i) => (
+                <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                  <td className="px-3 py-2 text-sm font-medium text-gray-900 dark:text-white">{item.area}</td>
+                  <td className="px-3 py-2 text-sm text-gray-600 dark:text-gray-400">{item.issue}</td>
+                  <td className="px-3 py-2 text-sm text-right font-semibold text-gray-900 dark:text-white">{item.count.toLocaleString()}</td>
+                  <td className="px-3 py-2 text-center">
+                    <span className={`inline-flex items-center gap-1 text-xs font-medium ${
+                      item.trend === 'rising' ? 'text-red-600' :
+                      item.trend === 'declining' ? 'text-green-600' : 'text-gray-500'
+                    }`}>
+                      {item.trend === 'rising' && <TrendingUp className="w-3 h-3" />}
+                      {item.trend === 'declining' && <TrendingDown className="w-3 h-3" />}
+                      {item.trend}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-sm text-right text-gray-500">{item.months} mo</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 

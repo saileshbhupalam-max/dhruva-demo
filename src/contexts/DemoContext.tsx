@@ -671,7 +671,9 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     if (!pipelineResult) return;
 
     const oldDept = pipelineResult.classification.department;
+    const targetCaseId = pipelineResult.caseId;
 
+    // Update pipelineResult
     setPipelineResult(prev => prev ? {
       ...prev,
       classification: {
@@ -679,6 +681,26 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
         department: newDept,
       },
     } : null);
+
+    // Update grievanceQueue with new department
+    setGrievanceQueue(prev => prev.map(g =>
+      g.id === targetCaseId ? { ...g, department: newDept } : g
+    ));
+
+    // Update submittedGrievances with new department
+    setSubmittedGrievances(prev => prev.map(g =>
+      g.id === targetCaseId ? {
+        ...g,
+        department: newDept,
+        pipelineResult: g.pipelineResult ? {
+          ...g.pipelineResult,
+          classification: {
+            ...g.pipelineResult.classification,
+            department: newDept,
+          }
+        } : null
+      } : g
+    ));
 
     addAuditEntry({
       action: 'REASSIGNED',

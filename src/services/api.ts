@@ -146,8 +146,11 @@ class DhruvaAPI {
       if (response.ok) {
         const data = await response.json();
         console.log(`${DEBUG_PREFIX} Health response data:`, data);
-        console.log(`${DEBUG_PREFIX} healthCheck() returning healthy: true`);
-        return { healthy: true, details: data };
+        // Consider backend healthy if it responds - even if "degraded"
+        // The analyze endpoint will still work with fallback classification
+        const isHealthy = data.status === 'healthy' || data.status === 'degraded';
+        console.log(`${DEBUG_PREFIX} healthCheck() returning healthy:`, isHealthy);
+        return { healthy: isHealthy, details: data };
       }
       console.log(`${DEBUG_PREFIX} healthCheck() returning healthy: false (response not ok)`);
       return { healthy: false };

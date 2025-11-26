@@ -117,25 +117,36 @@ function AnimatedArrow({ from, to, animated, label, curved }: ArrowProps) {
     path = `M${from.x},${from.y} L${to.x},${to.y}`;
   }
 
-  // Calculate arrow head angle
-  const angle = Math.atan2(to.y - from.y, to.x - from.x) * 180 / Math.PI;
+  // Unique ID for this arrow's animation
+  const arrowId = `arrow-${from.x}-${from.y}-${to.x}-${to.y}`.replace(/\./g, '-');
 
   return (
     <g>
-      {/* Arrow line */}
+      {/* Arrow line - dashed when animated */}
       <path
         d={path}
         fill="none"
-        stroke="#94A3B8"
-        strokeWidth={1.5}
-        markerEnd="url(#arrowhead)"
-      />
+        stroke={animated ? '#3B82F6' : '#94A3B8'}
+        strokeWidth={animated ? 2 : 1.5}
+        strokeDasharray={animated ? '6 4' : 'none'}
+        strokeLinecap="round"
+        markerEnd={animated ? 'url(#arrowhead-animated)' : 'url(#arrowhead)'}
+      >
+        {animated && (
+          <animate
+            attributeName="stroke-dashoffset"
+            values="0;-20"
+            dur="0.8s"
+            repeatCount="indefinite"
+          />
+        )}
+      </path>
 
-      {/* Animated dot */}
+      {/* Animated dot traveling along path */}
       {animated && (
-        <circle r={3} fill="#3B82F6">
+        <circle r={4} fill="#3B82F6" opacity={0.8}>
           <animateMotion
-            dur="2s"
+            dur="1.5s"
             repeatCount="indefinite"
             path={path}
           />
@@ -202,6 +213,17 @@ export default function SystemArchitecture() {
               <polygon points="0 0, 10 3.5, 0 7" fill="#94A3B8" />
             </marker>
 
+            <marker
+              id="arrowhead-animated"
+              markerWidth={10}
+              markerHeight={7}
+              refX={9}
+              refY={3.5}
+              orient="auto"
+            >
+              <polygon points="0 0, 10 3.5, 0 7" fill="#3B82F6" />
+            </marker>
+
             {/* Gradient for sections */}
             <linearGradient id="sectionGrad" x1="0%" y1="0%" x2="0%" y2="100%">
               <stop offset="0%" stopColor="#F8FAFC" stopOpacity={0.8} />
@@ -262,7 +284,7 @@ export default function SystemArchitecture() {
           <Block
             id="classify"
             label="Classification"
-            sublabel="84.5% accuracy"
+            sublabel="~70% accuracy"
             x={110} y={145}
             width={85} height={50}
             type="model"
@@ -295,7 +317,7 @@ export default function SystemArchitecture() {
           <Block
             id="lapse"
             label="Lapse Risk"
-            sublabel="80.8% accuracy"
+            sublabel="~65% accuracy"
             x={380} y={145}
             width={80} height={50}
             type="model"

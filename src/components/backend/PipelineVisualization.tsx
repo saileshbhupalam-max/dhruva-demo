@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useDemo, PipelineStep } from '../../contexts/DemoContext';
-import { CheckCircle, Circle, Loader2, SkipForward, Clock, Brain, AlertTriangle, FileSearch, Bell, MessageSquare, ListChecks } from 'lucide-react';
+import { CheckCircle, Circle, Loader2, SkipForward, Clock, Brain, AlertTriangle, FileSearch, Bell, MessageSquare, ListChecks, ChevronDown, ChevronUp, Info } from 'lucide-react';
 
 const STEP_ICONS: Record<string, React.ReactNode> = {
   duplicate: <FileSearch className="w-4 h-4" />,
@@ -14,16 +14,43 @@ const STEP_ICONS: Record<string, React.ReactNode> = {
   actions: <ListChecks className="w-4 h-4" />,
 };
 
-const STEP_DESCRIPTIONS: Record<string, string> = {
-  duplicate: 'Checking for existing cases from this citizen (cosine similarity > 0.85)',
-  classify: 'Running Telugu Classifier V3 (84.5% accuracy) with fallback option',
-  sentiment: 'Detecting distress signals using bilingual keyword matching',
-  sla: 'Calculating SLA based on distress level (24h-336h)',
-  lapse: 'Predicting risk of improper redressal (80.8% accuracy)',
-  similar: 'Finding resolved cases with similar text (threshold: 0.70)',
-  alerts: 'Checking for area-based patterns (5+ complaints)',
-  template: 'Selecting empathy-adjusted response template',
-  actions: 'Generating recommended actions for officer',
+const STEP_DESCRIPTIONS: Record<string, { short: string; long: string }> = {
+  duplicate: {
+    short: 'Checking for existing cases from this citizen',
+    long: 'Uses cosine similarity (>0.85 threshold) to find if the same citizen has submitted a similar grievance before, preventing duplicate processing.'
+  },
+  classify: {
+    short: 'Running Telugu Classifier (~70% accuracy)',
+    long: 'Uses keyword boosting + ML model to route to correct department. Keyword matches get priority, ML handles novel text. Fallback ensures coverage.'
+  },
+  sentiment: {
+    short: 'Detecting distress signals (~75% accuracy)',
+    long: 'Scans for critical Telugu/English keywords like "starving", "dying". CRITICAL cases get 24hr SLA. Ensures urgent cases reach officers fast.'
+  },
+  sla: {
+    short: 'Calculating SLA deadline (24h-336h)',
+    long: 'Based on distress level: CRITICAL=24h, HIGH=72h, MEDIUM=7d, NORMAL=14d. Ensures time-bound resolution and accountability.'
+  },
+  lapse: {
+    short: 'Predicting lapse risk (~65% accuracy)',
+    long: 'Identifies patterns like "no response for months", "bribe demanded" that indicate potential improper redressal. Flags for supervisor review.'
+  },
+  similar: {
+    short: 'Finding similar resolved cases',
+    long: 'Vector search finds past cases with similar issues. Helps officers see how similar problems were resolved, speeding up resolution.'
+  },
+  alerts: {
+    short: 'Checking for area-based patterns',
+    long: 'Detects clusters: e.g., 50+ water complaints from same ward = systemic issue. Enables proactive policy intervention.'
+  },
+  template: {
+    short: 'Selecting response template',
+    long: 'Picks empathy-adjusted acknowledgment in Telugu/English based on distress level. Critical cases get urgent assurance templates.'
+  },
+  actions: {
+    short: 'Generating recommended actions',
+    long: 'AI suggests: "IMMEDIATE_ATTENTION" for critical, "SUPERVISOR_REVIEW" for high-risk lapses, "SIMILAR_CASE_REVIEW" when matches found.'
+  },
 };
 
 function StepStatusIcon({ status }: { status: PipelineStep['status'] }) {
@@ -66,6 +93,88 @@ function formatResult(step: PipelineStep): string {
   }
 }
 
+function StepCard({ step, index }: { step: PipelineStep; index: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const description = STEP_DESCRIPTIONS[step.id];
+
+  return (
+    <div
+      className={`rounded-lg p-3 transition-all duration-300 ${
+        step.status === 'processing'
+          ? 'bg-blue-900/50 border border-blue-500'
+          : step.status === 'completed'
+          ? 'bg-gray-800'
+          : 'bg-gray-800/50'
+      }`}
+    >
+      <div className="flex items-center gap-3">
+        <div className="flex-shrink-0">
+          <StepStatusIcon status={step.status} />
+        </div>
+        <div className="flex-shrink-0 w-6 h-6 rounded bg-gray-700 flex items-center justify-center text-gray-300">
+          {STEP_ICONS[step.id]}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-sm">
+              {index + 1}. {step.name}
+            </span>
+            {step.duration !== undefined && (
+              <span className="text-xs text-gray-500">
+                {step.duration.toFixed(2)}s
+              </span>
+            )}
+          </div>
+          {step.status === 'processing' && (
+            <div className="text-xs text-blue-400 mt-1">
+              {description?.short}
+            </div>
+          )}
+          {step.status === 'completed' && step.result && (
+            <div className="text-xs text-green-400 mt-1">
+              {formatResult(step)}
+            </div>
+          )}
+        </div>
+        {step.confidence !== undefined && (
+          <div className="flex-shrink-0">
+            <div className={`text-xs px-2 py-1 rounded ${
+              step.confidence > 0.8 ? 'bg-green-900 text-green-300' :
+              step.confidence > 0.6 ? 'bg-yellow-900 text-yellow-300' :
+              'bg-red-900 text-red-300'
+            }`}>
+              {(step.confidence * 100).toFixed(0)}%
+            </div>
+          </div>
+        )}
+        {/* Expand/collapse button */}
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex-shrink-0 p-1 hover:bg-gray-700 rounded transition-colors"
+          title={expanded ? 'Hide details' : 'Show details'}
+        >
+          {expanded ? (
+            <ChevronUp className="w-4 h-4 text-gray-400" />
+          ) : (
+            <Info className="w-4 h-4 text-gray-400" />
+          )}
+        </button>
+      </div>
+      {/* Expandable explanation */}
+      {expanded && description && (
+        <div className="mt-2 pt-2 border-t border-gray-700">
+          <div className="text-xs text-gray-300">
+            <span className="text-gray-500">What: </span>{description.short}
+          </div>
+          <div className="text-xs text-gray-400 mt-1">
+            <span className="text-gray-500">Why: </span>{description.long}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function PipelineVisualization() {
   const { pipelineSteps, pipelineResult, isProcessing, currentGrievance } = useDemo();
 
@@ -106,58 +215,7 @@ export function PipelineVisualization() {
       {/* Pipeline steps */}
       <div className="space-y-2">
         {pipelineSteps.map((step, index) => (
-          <div
-            key={step.id}
-            className={`rounded-lg p-3 transition-all duration-300 ${
-              step.status === 'processing'
-                ? 'bg-blue-900/50 border border-blue-500'
-                : step.status === 'completed'
-                ? 'bg-gray-800'
-                : 'bg-gray-800/50'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <div className="flex-shrink-0">
-                <StepStatusIcon status={step.status} />
-              </div>
-              <div className="flex-shrink-0 w-6 h-6 rounded bg-gray-700 flex items-center justify-center text-gray-300">
-                {STEP_ICONS[step.id]}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-sm">
-                    {index + 1}. {step.name}
-                  </span>
-                  {step.duration !== undefined && (
-                    <span className="text-xs text-gray-500">
-                      {step.duration.toFixed(2)}s
-                    </span>
-                  )}
-                </div>
-                {step.status === 'processing' && (
-                  <div className="text-xs text-blue-400 mt-1">
-                    {STEP_DESCRIPTIONS[step.id]}
-                  </div>
-                )}
-                {step.status === 'completed' && step.result && (
-                  <div className="text-xs text-green-400 mt-1">
-                    {formatResult(step)}
-                  </div>
-                )}
-              </div>
-              {step.confidence !== undefined && (
-                <div className="flex-shrink-0">
-                  <div className={`text-xs px-2 py-1 rounded ${
-                    step.confidence > 0.8 ? 'bg-green-900 text-green-300' :
-                    step.confidence > 0.6 ? 'bg-yellow-900 text-yellow-300' :
-                    'bg-red-900 text-red-300'
-                  }`}>
-                    {(step.confidence * 100).toFixed(0)}%
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+          <StepCard key={step.id} step={step} index={index} />
         ))}
       </div>
 
