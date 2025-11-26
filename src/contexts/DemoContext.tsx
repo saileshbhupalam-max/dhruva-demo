@@ -3,6 +3,9 @@ import { MOCK_GRIEVANCES, Grievance, RESPONSE_TEMPLATES } from '../data/mockGrie
 import { ML_MODELS, DISTRESS_KEYWORDS } from '../data/statistics';
 import { dhruvaApi, AnalyzeResponse } from '../services/api';
 
+// Debug logging
+const DEBUG_PREFIX = '[DEMO-CONTEXT]';
+
 export type Role = 'citizen' | 'officer' | 'policymaker' | null;
 export type ViewMode = 'stakeholder' | 'technical' | 'split';
 
@@ -305,13 +308,25 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
 
   // Check backend health on mount
   useEffect(() => {
+    console.log(`${DEBUG_PREFIX} useEffect - checking backend health on mount`);
     const checkBackend = async () => {
-      const health = await dhruvaApi.healthCheck();
-      setBackendAvailable(health.healthy);
-      if (!health.healthy) {
-        setBackendError('Backend not available - using simulation mode');
-      } else {
-        setBackendError(null);
+      console.log(`${DEBUG_PREFIX} checkBackend() starting...`);
+      try {
+        const health = await dhruvaApi.healthCheck();
+        console.log(`${DEBUG_PREFIX} healthCheck returned:`, health);
+        console.log(`${DEBUG_PREFIX} Setting backendAvailable to:`, health.healthy);
+        setBackendAvailable(health.healthy);
+        if (!health.healthy) {
+          console.log(`${DEBUG_PREFIX} Backend NOT healthy - setting simulation mode`);
+          setBackendError('Backend not available - using simulation mode');
+        } else {
+          console.log(`${DEBUG_PREFIX} Backend IS healthy - clearing error`);
+          setBackendError(null);
+        }
+      } catch (error) {
+        console.error(`${DEBUG_PREFIX} checkBackend() CAUGHT ERROR:`, error);
+        setBackendAvailable(false);
+        setBackendError(`Health check error: ${error instanceof Error ? error.message : 'Unknown'}`);
       }
     };
     checkBackend();
@@ -340,6 +355,11 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const processGrievance = useCallback(async (text: string, citizenName: string = 'Demo User'): Promise<PipelineResult> => {
+    console.log(`${DEBUG_PREFIX} processGrievance() called`);
+    console.log(`${DEBUG_PREFIX} Current backendAvailable:`, backendAvailable);
+    console.log(`${DEBUG_PREFIX} Current backendError:`, backendError);
+    console.log(`${DEBUG_PREFIX} Text (first 50 chars):`, text.substring(0, 50));
+
     setIsProcessing(true);
     setCurrentGrievance(text);
     setPipelineSteps(INITIAL_PIPELINE_STEPS);
@@ -366,12 +386,15 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     let result: PipelineResult;
 
     // Try real API first
+    console.log(`${DEBUG_PREFIX} About to check backendAvailable: ${backendAvailable}`);
     if (backendAvailable) {
+      console.log(`${DEBUG_PREFIX} *** USING REAL API ***`);
       try {
         // Show pipeline steps processing in real-time
         updateStep(0, { status: 'processing' });
 
         // Start API call
+        console.log(`${DEBUG_PREFIX} Calling dhruvaApi.analyzeGrievance()...`);
         const apiPromise = dhruvaApi.analyzeGrievance(text, undefined, 'Guntur');
 
         // Animate steps while waiting for API
@@ -389,6 +412,8 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
 
         // Wait for API response
         const apiResponse = await apiPromise;
+        console.log(`${DEBUG_PREFIX} API response received successfully!`);
+        console.log(`${DEBUG_PREFIX} API response:`, apiResponse);
 
         // Complete remaining steps quickly
         updateStep(3, { status: 'completed', duration: 0.08 });
@@ -413,13 +438,17 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
         });
 
       } catch (error) {
-        console.error('API call failed, falling back to simulation:', error);
+        console.error(`${DEBUG_PREFIX} API call FAILED, falling back to simulation:`, error);
+        console.error(`${DEBUG_PREFIX} Error type:`, error instanceof Error ? error.constructor.name : typeof error);
+        console.error(`${DEBUG_PREFIX} Error message:`, error instanceof Error ? error.message : String(error));
         setBackendError(`API error: ${error instanceof Error ? error.message : 'Unknown error'} - using simulation`);
         // Fall through to simulation
+        console.log(`${DEBUG_PREFIX} Falling back to runSimulation()...`);
         result = await runSimulation(text, newCaseId, steps, updateStep, addAuditEntry);
       }
     } else {
       // Use simulation
+      console.log(`${DEBUG_PREFIX} *** USING SIMULATION (backendAvailable=false) ***`);
       result = await runSimulation(text, newCaseId, steps, updateStep, addAuditEntry);
     }
 
