@@ -1,37 +1,63 @@
 /**
  * Dhruva API Service
  * Connects demo frontend to real FastAPI backend ML pipeline
- * Backend: Railway (https://web-production-9dfcb.up.railway.app)
+ * Multi-URL fallback strategy for resilience
  */
 
 // Debug logging prefix
 const DEBUG_PREFIX = '[DHRUVA-API]';
 
-// API Configuration
-const getApiUrl = (): string => {
-  console.log(`${DEBUG_PREFIX} getApiUrl() called`);
+// Fallback URLs to try in order (primary first, then fallbacks)
+const BACKEND_URLS = [
+  // Primary Railway URL
+  'https://web-production-9dfcb.up.railway.app',
+  // Alternative Railway URLs (if redeployed)
+  'https://dhruva-backend-production.up.railway.app',
+  // Render fallback (if deployed there)
+  'https://dhruva-backend.onrender.com',
+];
+
+// API Configuration - returns list of URLs to try
+const getApiUrls = (): string[] => {
+  console.log(`${DEBUG_PREFIX} getApiUrls() called`);
   console.log(`${DEBUG_PREFIX} VITE_API_URL:`, import.meta.env.VITE_API_URL);
   console.log(`${DEBUG_PREFIX} VITE_RAILWAY_URL:`, import.meta.env.VITE_RAILWAY_URL);
   console.log(`${DEBUG_PREFIX} PROD mode:`, import.meta.env.PROD);
 
-  // Check for environment variable first
+  const urls: string[] = [];
+
+  // Check for environment variable first (highest priority)
   if (import.meta.env.VITE_API_URL) {
-    console.log(`${DEBUG_PREFIX} Using VITE_API_URL:`, import.meta.env.VITE_API_URL);
-    return import.meta.env.VITE_API_URL;
+    console.log(`${DEBUG_PREFIX} Adding VITE_API_URL:`, import.meta.env.VITE_API_URL);
+    urls.push(import.meta.env.VITE_API_URL);
   }
-  // Production Railway URL
+
+  // Add custom Railway URL if set
+  if (import.meta.env.VITE_RAILWAY_URL) {
+    console.log(`${DEBUG_PREFIX} Adding VITE_RAILWAY_URL:`, import.meta.env.VITE_RAILWAY_URL);
+    urls.push(import.meta.env.VITE_RAILWAY_URL);
+  }
+
+  // Production: add fallback URLs
   if (import.meta.env.PROD) {
-    const url = import.meta.env.VITE_RAILWAY_URL || 'https://web-production-9dfcb.up.railway.app';
-    console.log(`${DEBUG_PREFIX} Using production URL:`, url);
-    return url;
+    console.log(`${DEBUG_PREFIX} Adding production fallback URLs`);
+    urls.push(...BACKEND_URLS);
+  } else {
+    // Local development - try localhost first, then remote fallbacks
+    console.log(`${DEBUG_PREFIX} Adding localhost:8000 for development`);
+    urls.push('http://localhost:8000');
+    urls.push(...BACKEND_URLS);
   }
-  // Local development
-  console.log(`${DEBUG_PREFIX} Using localhost:8000`);
-  return 'http://localhost:8000';
+
+  // Remove duplicates
+  const uniqueUrls = [...new Set(urls)];
+  console.log(`${DEBUG_PREFIX} Final URL list:`, uniqueUrls);
+  return uniqueUrls;
 };
 
-export const API_URL = getApiUrl();
-console.log(`${DEBUG_PREFIX} Final API_URL:`, API_URL);
+export const API_URLS = getApiUrls();
+export const API_URL = API_URLS[0]; // Primary URL for backwards compatibility
+console.log(`${DEBUG_PREFIX} Primary API_URL:`, API_URL);
 
 // Types matching backend response
 export interface ClassificationResult {
@@ -109,10 +135,13 @@ export interface MLHealthResponse {
 // API Service class
 class DhruvaAPI {
   private baseUrl: string;
+  private fallbackUrls: string[];
   private timeout: number = 15000; // 15 second timeout
+  private workingUrl: string | null = null; // Cache the working URL
 
   constructor() {
     this.baseUrl = API_URL;
+    this.fallbackUrls = API_URLS;
   }
 
   /**
@@ -120,46 +149,79 @@ class DhruvaAPI {
    */
   setBaseUrl(url: string) {
     this.baseUrl = url;
+    this.workingUrl = null; // Reset cache when URL changes
   }
 
   /**
-   * Check if backend is available
+   * Get the current working URL (cached after successful health check)
    */
-  async healthCheck(): Promise<{ healthy: boolean; details?: MLHealthResponse }> {
-    const healthUrl = `${this.baseUrl}/api/v1/ml/health`;
-    console.log(`${DEBUG_PREFIX} healthCheck() starting...`);
-    console.log(`${DEBUG_PREFIX} Health URL:`, healthUrl);
+  getWorkingUrl(): string {
+    return this.workingUrl || this.baseUrl;
+  }
+
+  /**
+   * Try to fetch from a single URL with timeout
+   */
+  private async tryHealthCheck(url: string, timeoutMs: number = 5000): Promise<{ healthy: boolean; details?: MLHealthResponse; url: string }> {
+    const healthUrl = `${url}/api/v1/ml/health`;
+    console.log(`${DEBUG_PREFIX} Trying health check at:`, healthUrl);
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-      console.log(`${DEBUG_PREFIX} Fetching health endpoint...`);
       const response = await fetch(healthUrl, {
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
 
-      console.log(`${DEBUG_PREFIX} Health response status:`, response.status);
-      console.log(`${DEBUG_PREFIX} Health response ok:`, response.ok);
+      console.log(`${DEBUG_PREFIX} ${url} - Response status:`, response.status);
 
       if (response.ok) {
         const data = await response.json();
-        console.log(`${DEBUG_PREFIX} Health response data:`, data);
-        // Consider backend healthy if it responds - even if "degraded"
-        // The analyze endpoint will still work with fallback classification
+        console.log(`${DEBUG_PREFIX} ${url} - Response data:`, data);
         const isHealthy = data.status === 'healthy' || data.status === 'degraded';
-        console.log(`${DEBUG_PREFIX} healthCheck() returning healthy:`, isHealthy);
-        return { healthy: isHealthy, details: data };
+        return { healthy: isHealthy, details: data, url };
       }
-      console.log(`${DEBUG_PREFIX} healthCheck() returning healthy: false (response not ok)`);
-      return { healthy: false };
+      return { healthy: false, url };
     } catch (error) {
-      console.error(`${DEBUG_PREFIX} healthCheck() CAUGHT ERROR:`, error);
-      console.error(`${DEBUG_PREFIX} Error name:`, error instanceof Error ? error.name : 'Unknown');
-      console.error(`${DEBUG_PREFIX} Error message:`, error instanceof Error ? error.message : String(error));
-      return { healthy: false };
+      console.log(`${DEBUG_PREFIX} ${url} - Failed:`, error instanceof Error ? error.message : String(error));
+      return { healthy: false, url };
     }
+  }
+
+  /**
+   * Check if backend is available - tries multiple URLs with fallback
+   */
+  async healthCheck(): Promise<{ healthy: boolean; details?: MLHealthResponse }> {
+    console.log(`${DEBUG_PREFIX} healthCheck() starting with multi-URL fallback...`);
+    console.log(`${DEBUG_PREFIX} URLs to try:`, this.fallbackUrls);
+
+    // If we have a cached working URL, try it first
+    if (this.workingUrl) {
+      console.log(`${DEBUG_PREFIX} Trying cached working URL first:`, this.workingUrl);
+      const result = await this.tryHealthCheck(this.workingUrl, 3000);
+      if (result.healthy) {
+        console.log(`${DEBUG_PREFIX} Cached URL still works!`);
+        return { healthy: true, details: result.details };
+      }
+      console.log(`${DEBUG_PREFIX} Cached URL failed, trying fallbacks...`);
+      this.workingUrl = null;
+    }
+
+    // Try each URL in order
+    for (const url of this.fallbackUrls) {
+      const result = await this.tryHealthCheck(url, 5000);
+      if (result.healthy) {
+        console.log(`${DEBUG_PREFIX} SUCCESS! Found working URL:`, url);
+        this.workingUrl = url;
+        this.baseUrl = url;
+        return { healthy: true, details: result.details };
+      }
+    }
+
+    console.log(`${DEBUG_PREFIX} All URLs failed, backend unavailable`);
+    return { healthy: false };
   }
 
   /**
@@ -170,8 +232,10 @@ class DhruvaAPI {
     citizenId?: string,
     location?: string
   ): Promise<AnalyzeResponse> {
-    const analyzeUrl = `${this.baseUrl}/api/v1/ml/analyze`;
+    const workingUrl = this.getWorkingUrl();
+    const analyzeUrl = `${workingUrl}/api/v1/ml/analyze`;
     console.log(`${DEBUG_PREFIX} analyzeGrievance() starting...`);
+    console.log(`${DEBUG_PREFIX} Using working URL:`, workingUrl);
     console.log(`${DEBUG_PREFIX} Analyze URL:`, analyzeUrl);
     console.log(`${DEBUG_PREFIX} Request body:`, { text: text.substring(0, 50) + '...', citizen_id: citizenId, location });
 
@@ -228,7 +292,7 @@ class DhruvaAPI {
    * Classification only endpoint
    */
   async classifyGrievance(text: string): Promise<ClassificationResult> {
-    const response = await fetch(`${this.baseUrl}/api/v1/ml/classify`, {
+    const response = await fetch(`${this.getWorkingUrl()}/api/v1/ml/classify`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -247,7 +311,7 @@ class DhruvaAPI {
    * Sentiment/distress analysis only
    */
   async analyzeSentiment(text: string): Promise<SentimentResult> {
-    const response = await fetch(`${this.baseUrl}/api/v1/ml/sentiment`, {
+    const response = await fetch(`${this.getWorkingUrl()}/api/v1/ml/sentiment`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -266,7 +330,7 @@ class DhruvaAPI {
    * Lapse prediction only
    */
   async predictLapse(text: string, department?: string): Promise<LapsePredictionResult> {
-    const response = await fetch(`${this.baseUrl}/api/v1/ml/predict-lapse`, {
+    const response = await fetch(`${this.getWorkingUrl()}/api/v1/ml/predict-lapse`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
