@@ -460,9 +460,9 @@ export default function SystemArchitecture() {
           <AnimatedArrow from={{ x: 532, y: 265 }} to={{ x: 272, y: 333 }} animated={pipelineResult !== null} curved />
           <AnimatedArrow from={{ x: 532, y: 265 }} to={{ x: 375, y: 333 }} animated={pipelineResult !== null} curved />
 
-          {/* Clarification loop */}
-          <AnimatedArrow from={{ x: 290, y: 220 }} to={{ x: 433, y: 362 }} curved label="<75%" />
-          <AnimatedArrow from={{ x: 520, y: 362 }} to={{ x: 610, y: 200 }} curved />
+          {/* Clarification loop - always animated to show feedback path */}
+          <AnimatedArrow from={{ x: 290, y: 220 }} to={{ x: 433, y: 362 }} curved label="<75%" animated />
+          <AnimatedArrow from={{ x: 520, y: 362 }} to={{ x: 610, y: 200 }} curved animated />
 
           {/* Legend */}
           <g transform="translate(580, 320)">
