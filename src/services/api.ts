@@ -9,9 +9,10 @@ const DEBUG_PREFIX = '[DHRUVA-API]';
 
 // Fallback URLs to try in order (primary first, then fallbacks)
 const BACKEND_URLS = [
-  // Primary Railway URL (regenerated 2024-11-27)
+  // Primary Railway URL (verified working 2024-11-27)
+  'https://web-production-889d.up.railway.app',
+  // Old Railway URLs (kept as fallbacks)
   'https://web-production-fefe0.up.railway.app',
-  // Old Railway URL (kept as fallback)
   'https://web-production-9dfcb.up.railway.app',
   // Alternative Railway URLs (if redeployed)
   'https://dhruva-backend-production.up.railway.app',
