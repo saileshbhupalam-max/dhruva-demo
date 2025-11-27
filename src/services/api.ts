@@ -9,7 +9,9 @@ const DEBUG_PREFIX = '[DHRUVA-API]';
 
 // Fallback URLs to try in order (primary first, then fallbacks)
 const BACKEND_URLS = [
-  // Primary Railway URL (verified working 2024-11-27)
+  // Primary: Cloudflare Worker proxy (bypasses DNS/TLS issues)
+  'https://dhruva-api-proxy.dhruvaapi.workers.dev',
+  // Direct Railway URL (verified working 2024-11-27)
   'https://web-production-889d.up.railway.app',
   // Old Railway URLs (kept as fallbacks)
   'https://web-production-fefe0.up.railway.app',
